@@ -55,10 +55,12 @@ let pointerStartX = 0;
 let pointerStartY = 0;
 let isDraggingCarousel = false;
 let hasMovedCarousel = false;
+
 function rotateCarousel(direction) {
     currentAngle += direction * 72;
     carousel.style.transform = `rotateY(${currentAngle}deg)`;
 }
+
 scene.addEventListener('pointerdown', (event) => {
     pointerStartX = event.clientX;
     pointerStartY = event.clientY;
@@ -69,60 +71,77 @@ scene.addEventListener('pointerdown', (event) => {
 });
 scene.addEventListener('pointermove', (event) => {
     if (!isDraggingCarousel) return;
+
     const horizontalDistance = event.clientX - pointerStartX;
     const verticalDistance = event.clientY - pointerStartY;
     if (Math.abs(horizontalDistance) > 12 || Math.abs(verticalDistance) > 12) {
         hasMovedCarousel = true;
     }
 });
+
 scene.addEventListener('pointerup', (event) => {
     if (!isDraggingCarousel) return;
+
     const horizontalDistance = event.clientX - pointerStartX;
     if (Math.abs(horizontalDistance) >= 30) {
         rotateCarousel(horizontalDistance > 0 ? 1 : -1);
     } else if (!hasMovedCarousel) {
         rotateCarousel(-1);
     }
+
     isDraggingCarousel = false;
     scene.classList.remove('is-dragging');
     scene.releasePointerCapture(event.pointerId);
 });
+
 scene.addEventListener('pointercancel', (event) => {
     isDraggingCarousel = false;
     scene.classList.remove('is-dragging');
     scene.releasePointerCapture(event.pointerId);
 });
+
 menuBtn.addEventListener('click', () => {
     const isOpen = mobileMenu.classList.toggle('active');
     document.body.style.overflow = isOpen ? 'hidden' : '';
 });
+
+
 closeMenu.addEventListener('click', () => {
     mobileMenu.classList.remove('active');
     document.body.style.overflow = '';
 });
+
+
 mobileMenu.addEventListener('click', (e) => {
     if (e.target === mobileMenu) {
         mobileMenu.classList.remove('active');
         document.body.style.overflow = '';
     }
 });
+
 mobileMenu.querySelectorAll('a').forEach(link => {
     link.addEventListener('click', () => {
         mobileMenu.classList.remove('active');
         document.body.style.overflow = '';
     });
 });
+
 uploadBox.addEventListener('click', () => {
     if (!uploadedImage) fileInput.click();
 });
+
 uploadBtn.addEventListener('click', (event) => {
     event.stopPropagation();
     if (!uploadedImage) fileInput.click();
 });
+
+
 fileInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (file) handleFile(file);
 });
+
+
 ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => 
     uploadBox.addEventListener(eventName, (e) => {
         e.preventDefault();
@@ -135,6 +154,8 @@ fileInput.addEventListener('change', (e) => {
         }
     })
 );
+
+
 uploadBox.addEventListener('drop', (e) => {
     const file = e.dataTransfer.files[0];
     if (file && file.type.startsWith('image/')) {
@@ -143,6 +164,7 @@ uploadBox.addEventListener('drop', (e) => {
         showToast('Please upload an image file (JPEG, PNG, WebP)', 'error');
     }
 });
+
 function handleFile(file) {
     const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
     if (!validTypes.includes(file.type)) {
@@ -196,12 +218,22 @@ function openResizeModal() {
         showToast('Please upload an image first', 'error');
         return;
     }
-    resizePreviewImg.src = previewImg.src;
+    cropRatio = null;
+    cropPresets.forEach(button => button.classList.toggle('active', button.dataset.ratio === 'free'));
+
     rotation = 0;
     rotationValue.textContent = '0°';
     resizeModal.classList.add('active');
     document.body.style.overflow = 'hidden';
-    requestAnimationFrame(resetCropFrame);
+    
+resizePreviewImg.onload = () => {
+    requestAnimationFrame(() => {
+        resetCropFrame();
+    });
+};
+
+resizePreviewImg.src = previewImg.src;
+
 }
 
 
@@ -213,30 +245,111 @@ modalOverlay.addEventListener('click', closeResizeModal);
 modalClose.addEventListener('click', closeResizeModal);
 cancelResize.addEventListener('click', closeResizeModal);
 
-function resetCropFrame() {
+
+function getImageDisplayBounds() {
     const stageWidth = cropStage.clientWidth;
     const stageHeight = cropStage.clientHeight;
-    cropWidth = stageWidth * 0.8;
-    cropHeight = stageHeight * 0.8;
-    cropLeft = (stageWidth - cropWidth) / 2;
-    cropTop = (stageHeight - cropHeight) / 2;
+
+    // Actual displayed image dimensions and position
+    const displayedWidth = resizePreviewImg.offsetWidth;
+    const displayedHeight = resizePreviewImg.offsetHeight;
+    const offsetX = resizePreviewImg.offsetLeft;
+    const offsetY = resizePreviewImg.offsetTop;
+
+    return {
+        stageWidth,
+        stageHeight,
+        displayedWidth,
+        displayedHeight,
+        offsetX,
+        offsetY
+    };
+}
+
+
+function clamp(value, min, max) {
+    return Math.min(Math.max(value, min), max);
+}
+
+function resetCropFrame() {
+    const { stageWidth, stageHeight, displayedWidth, displayedHeight, offsetX, offsetY } = getImageDisplayBounds();
+    cropWidth = Math.min(displayedWidth * 0.8, displayedWidth);
+    cropHeight = Math.min(displayedHeight * 0.8, displayedHeight);
+    cropLeft = offsetX + (displayedWidth - cropWidth) / 2;
+    cropTop = offsetY + (displayedHeight - cropHeight) / 2;
     applyCropRatio();
     updateCropFrame();
 }
 
 function applyCropRatio() {
-    if (!cropRatio) return;
-    const stageWidth = cropStage.clientWidth;
-    const stageHeight = cropStage.clientHeight;
+    const { displayedWidth, displayedHeight, offsetX, offsetY } = getImageDisplayBounds();
+    if (!cropRatio) {
+        cropWidth = clamp(cropWidth, 40, displayedWidth);
+        cropHeight = clamp(cropHeight, 40, displayedHeight);
+        cropLeft = clamp(cropLeft, offsetX, offsetX + displayedWidth - cropWidth);
+        cropTop = clamp(cropTop, offsetY, offsetY + displayedHeight - cropHeight);
+        return;
+    }
+
     if (cropWidth / cropHeight > cropRatio) {
         cropWidth = cropHeight * cropRatio;
     } else {
         cropHeight = cropWidth / cropRatio;
     }
-    cropWidth = Math.min(cropWidth, stageWidth);
-    cropHeight = Math.min(cropHeight, stageHeight);
-    cropLeft = Math.max(0, (stageWidth - cropWidth) / 2);
-    cropTop = Math.max(0, (stageHeight - cropHeight) / 2);
+
+    cropWidth = Math.min(Math.max(cropWidth, 40), displayedWidth);
+    cropHeight = Math.min(Math.max(cropHeight, 40), displayedHeight);
+
+    if (cropWidth / cropHeight > cropRatio) {
+        cropHeight = cropWidth / cropRatio;
+    } else if (cropWidth / cropHeight < cropRatio) {
+        cropWidth = cropHeight * cropRatio;
+    }
+
+    cropLeft = clamp(cropLeft, offsetX, offsetX + displayedWidth - cropWidth);
+    cropTop = clamp(cropTop, offsetY, offsetY + displayedHeight - cropHeight);
+}
+
+function constrainCropToRatio({left, top, width, height}) {
+    if (!cropRatio) return { left, top, width, height };
+
+    const constrainedWidth = Math.max(40, width);
+    const constrainedHeight = Math.max(40, height);
+
+    if (constrainedWidth / constrainedHeight > cropRatio) {
+        const adjustedWidth = constrainedHeight * cropRatio;
+        if (left + constrainedWidth > cropLeft + cropWidth) {
+            return {
+                left: Math.max(cropLeft, left + (constrainedWidth - adjustedWidth)),
+                top,
+                width: adjustedWidth,
+                height: constrainedHeight
+            };
+        }
+        return {
+            left,
+            top,
+            width: adjustedWidth,
+            height: constrainedHeight
+        };
+    }
+
+    const adjustedHeight = constrainedWidth / cropRatio;
+    if (top + constrainedHeight > cropTop + cropHeight) {
+        return {
+            left,
+            top: Math.max(cropTop, top + (constrainedHeight - adjustedHeight)),
+            width: constrainedWidth,
+            height: adjustedHeight
+        };
+    }
+
+    return {
+        left,
+        top,
+        width: constrainedWidth,
+        height: adjustedHeight
+    };
 }
 
 function updateCropFrame() {
@@ -279,6 +392,7 @@ cropHandles.forEach(handle => handle.addEventListener('pointerdown', event => {
 
 cropFrame.addEventListener('pointermove', event => {
     if (isResizingCrop) {
+        const { displayedWidth, displayedHeight, offsetX, offsetY } = getImageDisplayBounds();
         const dx = event.clientX - cropDragStartX;
         const dy = event.clientY - cropDragStartY;
         const minSize = 40;
@@ -286,26 +400,53 @@ cropFrame.addEventListener('pointermove', event => {
         let nextTop = cropStartTop;
         let nextWidth = cropWidth;
         let nextHeight = cropHeight;
-        if (activeCropHandle.includes('right')) nextWidth = Math.max(minSize, Math.min(cropStage.clientWidth - cropStartLeft, cropStartWidth + dx));
+        const maxLeft = offsetX + displayedWidth;
+        const maxTop = offsetY + displayedHeight;
+
+        if (activeCropHandle.includes('right')) {
+            nextWidth = Math.max(minSize, Math.min(maxLeft - cropStartLeft, cropStartWidth + dx));
+        }
         if (activeCropHandle.includes('left')) {
-            nextLeft = Math.max(0, Math.min(cropStartLeft + cropStartWidth - minSize, cropStartLeft + dx));
+            nextLeft = Math.max(offsetX, Math.min(cropStartLeft + cropStartWidth - minSize, cropStartLeft + dx));
             nextWidth = cropStartWidth + cropStartLeft - nextLeft;
         }
-        if (activeCropHandle.includes('bottom')) nextHeight = Math.max(minSize, Math.min(cropStage.clientHeight - cropStartTop, cropStartHeight + dy));
+        if (activeCropHandle.includes('bottom')) {
+            nextHeight = Math.max(minSize, Math.min(maxTop - cropStartTop, cropStartHeight + dy));
+        }
         if (activeCropHandle.includes('top')) {
-            nextTop = Math.max(0, Math.min(cropStartTop + cropStartHeight - minSize, cropStartTop + dy));
+            nextTop = Math.max(offsetY, Math.min(cropStartTop + cropStartHeight - minSize, cropStartTop + dy));
             nextHeight = cropStartHeight + cropStartTop - nextTop;
         }
+
         cropLeft = nextLeft;
         cropTop = nextTop;
         cropWidth = nextWidth;
         cropHeight = nextHeight;
+
+        if (cropRatio) {
+            if (cropWidth / cropHeight > cropRatio) {
+                cropWidth = cropHeight * cropRatio;
+            } else {
+                cropHeight = cropWidth / cropRatio;
+            }
+            if (activeCropHandle.includes('left')) {
+                cropLeft = Math.max(offsetX, cropStartLeft + cropStartWidth - cropWidth);
+            }
+            if (activeCropHandle.includes('top')) {
+                cropTop = Math.max(offsetY, cropStartTop + cropStartHeight - cropHeight);
+            }
+            cropLeft = clamp(cropLeft, offsetX, maxLeft - cropWidth);
+            cropTop = clamp(cropTop, offsetY, maxTop - cropHeight);
+        }
+
         updateCropFrame();
         return;
     }
     if (!isDraggingCrop) return;
-    cropLeft = Math.max(0, Math.min(cropStage.clientWidth - cropWidth, cropStartLeft + event.clientX - cropDragStartX));
-    cropTop = Math.max(0, Math.min(cropStage.clientHeight - cropHeight, cropStartTop + event.clientY - cropDragStartY));
+
+    const { displayedWidth, displayedHeight, offsetX, offsetY } = getImageDisplayBounds();
+    cropLeft = clamp(cropStartLeft + event.clientX - cropDragStartX, offsetX, offsetX + displayedWidth - cropWidth);
+    cropTop = clamp(cropStartTop + event.clientY - cropDragStartY, offsetY, offsetY + displayedHeight - cropHeight);
     updateCropFrame();
 });
 
@@ -325,7 +466,7 @@ function syncTargetSize(source = 'slider') {
         targetSizeSlider.value = size;
         targetSizeInput.value = size;
     } else if (source === 'slider') {
-        targetSizeInput.value = size
+        targetSizeInput.value = size;
     }
 
     const unitText = targetSizeUnit.options[targetSizeUnit.selectedIndex].text;
@@ -336,9 +477,8 @@ targetSizeSlider.addEventListener('input', () => syncTargetSize('slider'));
 targetSizeInput.addEventListener('input', () => syncTargetSize('input'));
 targetSizeInput.addEventListener('blur', () => syncTargetSize('input'));
 targetSizeUnit.addEventListener('change', () => syncTargetSize('slider'));
-targetSizeInput.addEventListener('focus', () => {
-    targetSizeInput.select();
-});
+
+// Initial
 syncTargetSize('slider');
 function updateRotation() {
     resizePreviewImg.style.transform = `rotate(${rotation}deg)`;
@@ -355,115 +495,333 @@ rotateRight.addEventListener('click', () => {
     updateRotation();
 });
 
-downloadResized.addEventListener('click', () => {
-    if (!uploadedImage) return;
-    
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    const scaleX = originalWidth / cropStage.clientWidth;
-    const scaleY = originalHeight / cropStage.clientHeight;
-    const sourceWidth = Math.max(1, Math.round(cropWidth * scaleX));
-    const sourceHeight = Math.max(1, Math.round(cropHeight * scaleY));
-    const sourceX = Math.round(cropLeft * scaleX);
-    const sourceY = Math.round(cropTop * scaleY);
-    const rotated = rotation % 180 !== 0;
-    const outputWidth = sourceWidth;
-    const outputHeight = sourceHeight;
-    canvas.width = rotated ? outputHeight : outputWidth;
-    canvas.height = rotated ? outputWidth : outputHeight;
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.translate(canvas.width / 2, canvas.height / 2);
-    ctx.rotate(rotation * Math.PI / 180);
-    ctx.drawImage(uploadedImage, sourceX, sourceY, sourceWidth, sourceHeight, -outputWidth / 2, -outputHeight / 2, outputWidth, outputHeight);
-   const targetBytes = Math.round(
-    parseInt(targetSizeSlider.value, 10) * parseInt(targetSizeUnit.value, 10)
-);
-    exportToTargetSize(canvas, targetBytes, outputFormat.value, (blob) => {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `cropped-image.${blob.type.split('/')[1]}`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        
-        showToast('Cropped image downloaded successfully!');
-        closeResizeModal();
-    });
-});
-function exportToTargetSize(canvas, targetBytes, mimeType, callback) {
-    const safeCallback = (blob) => {
-        if (!blob) {
-            canvas.toBlob((fallback) => {
-                callback(fallback);
-            }, 'image/jpeg', 0.5);
-            return;
-        }
-        callback(blob);
+
+function getCropCoordinates() {
+    const {
+        displayedWidth,
+        displayedHeight,
+        offsetX,
+        offsetY
+    } = getImageDisplayBounds();
+
+    if (
+        !uploadedImage ||
+        displayedWidth <= 0 ||
+        displayedHeight <= 0
+    ) {
+        throw new Error("Image is not ready for cropping.");
+    }
+
+    // Display size aur original size ka ratio
+    const scaleX = originalWidth / displayedWidth;
+    const scaleY = originalHeight / displayedHeight;
+
+    // Crop selection ko image ki boundaries ke andar rakho
+    const left = clamp(
+        cropLeft,
+        offsetX,
+        offsetX + displayedWidth
+    );
+
+    const top = clamp(
+        cropTop,
+        offsetY,
+        offsetY + displayedHeight
+    );
+
+    const right = clamp(
+        cropLeft + cropWidth,
+        offsetX,
+        offsetX + displayedWidth
+    );
+
+    const bottom = clamp(
+        cropTop + cropHeight,
+        offsetY,
+        offsetY + displayedHeight
+    );
+
+    if (right <= left || bottom <= top) {
+        throw new Error(
+            "Please select a valid crop area inside the image."
+        );
+    }
+
+    // Screen coordinates ko original image pixels mein convert karo
+    const x = Math.round((left - offsetX) * scaleX);
+    const y = Math.round((top - offsetY) * scaleY);
+
+    const endX = Math.round((right - offsetX) * scaleX);
+    const endY = Math.round((bottom - offsetY) * scaleY);
+
+    // Original image ki boundaries se bahar na jaaye
+    const safeX = clamp(x, 0, originalWidth - 1);
+    const safeY = clamp(y, 0, originalHeight - 1);
+
+    return {
+        x: safeX,
+        y: safeY,
+        width: Math.max(
+            1,
+            Math.min(originalWidth, endX) - safeX
+        ),
+        height: Math.max(
+            1,
+            Math.min(originalHeight, endY) - safeY
+        )
     };
-    if (!targetBytes) {
-        canvas.toBlob(safeCallback, mimeType, 0.92);
-        return;
-    }
-    if (mimeType === 'image/png' || mimeType === 'image/bmp') {
-        canvas.toBlob(safeCallback, mimeType);
-        return;
-    }
-    canvas.toBlob((midBlob) => {
-        if (!midBlob) {
-            safeCallback(null);
-            return;
-        }
-        if (midBlob.size <= targetBytes) {
-            canvas.toBlob((highBlob) => {
-                if (highBlob && highBlob.size <= targetBytes) {
-                    safeCallback(highBlob);
-                } else {
-                    safeCallback(midBlob);
-                }
-            }, mimeType, 0.8);
-        } else {
-            canvas.toBlob((lowBlob) => {
-                if (lowBlob && lowBlob.size <= targetBytes) {
-                    safeCallback(lowBlob);
-                } else {
-                    shrinkDimensionsFast(canvas, targetBytes, mimeType, safeCallback);
-                }
-            }, mimeType, 0.25);
-        }
-    }, mimeType, 0.5);
 }
-function shrinkDimensionsFast(originalCanvas, targetBytes, mimeType, callback) {
-    const scales = [0.7, 0.5, 0.35, 0.25, 0.15];
-    let index = 0;
-    const attempt = () => {
-        if (index >= scales.length) {
-            originalCanvas.toBlob((fallback) => {
-                callback(fallback || null);
-            }, 'image/jpeg', 0.3);
+
+
+downloadResized.addEventListener('click', () => {
+    if (!uploadedImage) {
+        showToast('Please upload an image first', 'error');
+        return;
+    }
+
+    const canvas = document.createElement('canvas');
+
+    try {
+        const crop = getCropCoordinates();
+
+        const croppedCanvas = document.createElement('canvas');
+        croppedCanvas.width = crop.width;
+        croppedCanvas.height = crop.height;
+
+        const croppedCtx = croppedCanvas.getContext('2d');
+
+        if (!croppedCtx) {
+            throw new Error('Could not create image canvas.');
+        }
+
+        croppedCtx.imageSmoothingEnabled = true;
+        croppedCtx.imageSmoothingQuality = 'high';
+
+        croppedCtx.drawImage(
+            uploadedImage,
+            crop.x,
+            crop.y,
+            crop.width,
+            crop.height,
+            0,
+            0,
+            crop.width,
+            crop.height
+        );
+
+        const angle = ((rotation % 360) + 360) % 360;
+        const isSideways = angle === 90 || angle === 270;
+
+        canvas.width = isSideways ? crop.height : crop.width;
+        canvas.height = isSideways ? crop.width : crop.height;
+
+        const ctx = canvas.getContext('2d');
+
+        if (!ctx) {
+            throw new Error('Could not create output canvas.');
+        }
+
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.rotate(angle * Math.PI / 180);
+
+        ctx.drawImage(
+            croppedCanvas,
+            -crop.width / 2,
+            -crop.height / 2
+        );
+    } catch (error) {
+        showToast(error.message || 'Unable to crop image', 'error');
+        return;
+    }
+
+    const targetBytes = Math.round(
+        Number(targetSizeSlider.value) *
+        Number(targetSizeUnit.value)
+    );
+
+    if (outputFormat.value === 'application/pdf') {
+        try {
+            if (!window.jspdf || !window.jspdf.jsPDF) {
+                throw new Error(
+                    'PDF library is not loaded. Check your internet connection.'
+                );
+            }
+
+            const imageData = canvas.toDataURL('image/jpeg', 0.95);
+            const { jsPDF } = window.jspdf;
+
+            const pdfWidth = canvas.width * 0.75;
+            const pdfHeight = canvas.height * 0.75;
+
+            const pdf = new jsPDF({
+                orientation: canvas.width >= canvas.height
+                    ? 'landscape'
+                    : 'portrait',
+                unit: 'pt',
+                format: [pdfWidth, pdfHeight],
+                compress: true
+            });
+
+            pdf.addImage(
+                imageData,
+                'JPEG',
+                0,
+                0,
+                pdfWidth,
+                pdfHeight
+            );
+
+            pdf.save('resized-image.pdf');
+            showToast('PDF downloaded successfully!');
+            closeResizeModal();
+        } catch (error) {
+            console.error(error);
+            showToast(error.message || 'PDF conversion failed', 'error');
+        }
+
+        return;
+    }
+
+    exportToTargetSize(
+        canvas,
+        targetBytes,
+        outputFormat.value,
+        (blob) => {
+            if (!blob) {
+                showToast('Image export failed. Try another format.', 'error');
+                return;
+            }
+
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+
+            const extensions = {
+                'image/jpeg': 'jpg',
+                'image/png': 'png',
+                'image/webp': 'webp',
+                'image/avif': 'avif',
+                'image/bmp': 'bmp'
+            };
+
+            a.href = url;
+            a.download = `cropped-image.${extensions[blob.type] || 'png'}`;
+
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+
+            URL.revokeObjectURL(url);
+
+            showToast('Cropped image downloaded successfully!');
+            closeResizeModal();
+        }
+    );
+});
+
+function exportToTargetSize(canvas, targetBytes, mimeType, callback) {
+    if (!targetBytes) {
+        canvas.toBlob(callback, mimeType, 0.92);
+        return;
+    }
+
+    if (mimeType === 'image/png' || mimeType === 'image/bmp') {
+        canvas.toBlob(callback, mimeType);
+        return;
+    }
+
+    let low = 0.01;
+    let high = 0.95;
+    let bestBlob = null;
+
+    const binarySearch = () => {
+        if (high - low < 0.01) {
+            if (bestBlob && bestBlob.size <= targetBytes) {
+                callback(bestBlob);
+            } else {
+                shrinkDimensions(canvas, targetBytes, mimeType, callback);
+            }
             return;
         }
-        const scale = scales[index];
+
+        const mid = (low + high) / 2;
+        canvas.toBlob((blob) => {
+            if (!blob) {
+                callback(null);
+                return;
+            }
+            if (blob.size <= targetBytes) {
+                bestBlob = blob;
+                low = mid;
+            } else {
+                high = mid;
+            }
+            binarySearch();
+        }, mimeType, mid);
+    };
+
+    binarySearch();
+}
+
+function shrinkDimensions(originalCanvas, targetBytes, mimeType, callback) {
+    let scale = 0.9;
+    const minScale = 0.05;
+
+    const attempt = () => {
+        if (scale < minScale) {
+            originalCanvas.toBlob((blob) => {
+                callback(blob);
+            }, mimeType, 0.05);
+            return;
+        }
+
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = Math.max(1, Math.round(originalCanvas.width * scale));
         tempCanvas.height = Math.max(1, Math.round(originalCanvas.height * scale));
+
         const tctx = tempCanvas.getContext('2d');
         tctx.imageSmoothingEnabled = true;
         tctx.imageSmoothingQuality = 'high';
         tctx.drawImage(originalCanvas, 0, 0, tempCanvas.width, tempCanvas.height);
-        tempCanvas.toBlob((blob) => {
-            if (blob && blob.size <= targetBytes) {
-                callback(blob);
-            } else {
-                index++;
-                attempt();
+
+        let low = 0.01;
+        let high = 0.95;
+        let bestBlob = null;
+
+        const binarySearch = () => {
+            if (high - low < 0.01) {
+                if (bestBlob && bestBlob.size <= targetBytes) {
+                    callback(bestBlob);
+                } else {
+                    scale *= 0.75;
+                    attempt();
+                }
+                return;
             }
-        }, mimeType, 0.7);
+
+            const mid = (low + high) / 2;
+            tempCanvas.toBlob((blob) => {
+                if (!blob) {
+                    callback(null);
+                    return;
+                }
+                if (blob.size <= targetBytes) {
+                    bestBlob = blob;
+                    low = mid;
+                } else {
+                    high = mid;
+                }
+                binarySearch();
+            }, mimeType, mid);
+        };
+
+        binarySearch();
     };
+
     attempt();
-}
+} 
+
 accordionBtns.forEach(btn => {
     btn.addEventListener('click', () => {
         const content = btn.nextElementSibling;
