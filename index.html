@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
 </head>
 <body>
     <nav class="navbar">
@@ -129,21 +130,21 @@
                     <div class="control-group size-control">
                         <label for="targetSizeSlider">Download size: <strong id="targetSizeValue">1 MB</strong></label>
                         <div class="size-input-row">
-                            <input type="range" id="targetSizeSlider" min="1" max="4096" step="1" value="1" aria-label="Target download size">
-                            <input type="number" id="targetSizeInput" min="1" max="4096" step="1" value="1" aria-lebel="Enter target download size">
-                            <select id="targetSizeUnit" aria-label="Target download size unit">
-                                <option value="1024">KB</option>
-                                <option value="1048576" selected>MB</option>
-                                <option value="1073741824">GB</option>
-                            </select>
-                            <button type="button" class="best-quality-btn" id="bestQualityBtn">Best quality</button>
-                        </div>
-                        <small class="size-help" id="targetSizeHelp">Slide to choose the approximate file size</small>
+    <input type="range" id="targetSizeSlider" min="1" max="4096" step="1" value="1" aria-label="Target download size">
+<input type="number" id="targetSizeInput" min="1" max="4096" step="1" value="1" aria-lebel="Enter target download size">
+    <select id="targetSizeUnit" aria-label="Target download size unit">
+        <option value="1024">KB</option>
+        <option value="1048576" selected>MB</option>
+        <option value="1073741824">GB</option>
+    </select>
+</div>
+<small class="size-help" id="targetSizeHelp">Slide ya type karke file size choose karo</small>
                     </div>
                     <div class="control-group">
                         <label for="outputFormat">File format</label>
                         <select id="outputFormat" name="outputFormat">
                             <option value="image/jpeg" selected>JPEG</option>
+                            <option value="application/pdf">PDF</option>
                             <option value="image/png">PNG</option>
                             <option value="image/webp">WebP</option>
                             <option value="image/avif">AVIF</option>
@@ -288,6 +289,9 @@
         </div>
     </div>
 </footer>
-    <script src="script.js"></script>
+      
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="script.js"></script>
+
 </body>
 </html>
